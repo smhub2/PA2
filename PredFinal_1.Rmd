@@ -1,0 +1,1309 @@
+---
+title: "Predictive Analysis Exam"
+author: "Seuk-Min (Steve) Sohn"
+date: "8/18/2020"
+output: md_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Visual story telling part 1: green buildings
+
+
+### 1-1 Considering the preliminary recommendation
+
+From reading the preliminary recommendation, we would have to test to make sure the analysis was sound. The biggest point in the recommendation is making sure the comparison of the median market prices did not introduce other factors that could cause the differences in perceived price difference.
+
+Conclusion: When we examine the recommendation, we can see that other factors may cause the differences in rent prices, which means the project should consider more information to conclude that the certification would bring higher rent.
+
+```{r}
+library(mosaic)
+library(tidyverse)
+library(ggplot2)
+
+GreenBuilding = read.csv(url("https://raw.githubusercontent.com/jgscott/STA380/master/data/greenbuildings.csv"))
+head(GreenBuilding)
+```
+
+### 1-2 Verify what the analyst calculated in the preliminary recommendation
+
+It appears the price difference between Green buildings and regular buildings could be something other than just the building being green. To verify this, we need to at least see that green buildings have higher rent than buildings in the same cluster.
+
+When we tested the dataset, we could verify it does look like there are differences in the prices within cluster.
+
+This means if the cluster was chosen properly, there may be observable differences between prices.
+
+```{r}
+
+##### 1 calculate mean by cluster, 
+
+# 1.1 Divide dataset into Green and regular
+GB_Green   = subset(GreenBuilding, green_rating == 1)
+GB_Regular = subset(GreenBuilding, green_rating == 0)
+
+# 1.2 Group by
+
+#GreenBuilding$cluster = factor(GreenBuilding$cluster)
+#GB_by_cluster <- GreenBuilding %>% group_by(cluster)
+#summary(GreenBuilding$cluster == 502)
+
+# 1.2 Calculate average rent by creating separate dataframe for green and regular cluster
+GB_Green_by_cluster  <- aggregate(GB_Green[, 5], list(GB_Green$cluster), mean)
+GB_Regular_by_cluster <- aggregate(GB_Regular[, 5], list(GB_Regular$cluster), mean)
+
+
+# 1.3 merge two dataset to compare
+  # merge for each cluster
+GB_cluster_merged1 <- merge(GB_Green_by_cluster,GB_Regular_by_cluster,by="Group.1")
+GB_cluster_merged1 = rename(GB_cluster_merged1,  rent_green = x.x, rent_regular = x.y, cluster = Group.1)
+  #add a new column for differences within cluster
+GB_cluster_merged1 <- transform(GB_cluster_merged1, rent_diff = rent_green - rent_regular)
+
+#
+summary(GB_cluster_merged1)
+
+# 1.4 plot
+ggplot(data = GB_cluster_merged1) + geom_point(mapping = aes(x = rent_green, y = rent_regular, color = rent_diff)) +
+  xlim(0, 150) + 
+  ylim(0, 150)
+  
+
+```
+
+### 1-3 Check to see if anything else could cause the rent price difference
+
+Since the difference in price could be caused by some other factor, we can compare some of the attributes of the green buildings against the other buildings in the same cluster.
+
+We can find that the green buildings, when compared to the other buildings in the same cluster, are less old on average by 11.6 years (median 7 years), have on average 6 more stories (median 3 more), larger by mean 155,750 (median 96,105), and classified as A 32% more likely.
+
+All of these differences suggest that the differences are not caused by whether the building is rated as green or not, but rather other factors.
+
+
+```{r}
+####### 2 Check for differences by leasing rate, age, stories, class a, 
+
+#Create a dataframe for green and regular clusters again with more columns
+GB_Green_by_cluster  <- aggregate(GB_Green[, 3:23], list(GB_Green$cluster), mean)
+GB_Regular_by_cluster <- aggregate(GB_Regular[, 3:23], list(GB_Regular$cluster), mean)
+
+
+# 1.3 merge two dataset to compare
+GB_cluster_merged <- merge(GB_Green_by_cluster,GB_Regular_by_cluster,by="Group.1",  suffixes = c("_green","_reg"))
+GB_cluster_merged <- transform(GB_cluster_merged, rent_diff = Rent_green - Rent_reg)
+GB_cluster_merged <- transform(GB_cluster_merged, age_diff = age_green - age_reg)
+GB_cluster_merged <- transform(GB_cluster_merged, stories_diff = stories_green - stories_reg)
+GB_cluster_merged <- transform(GB_cluster_merged, size_diff = size_green - size_reg)
+GB_cluster_merged <- transform(GB_cluster_merged, class_diff = class_a_green - class_b_reg)
+GB_cluster_merged <- transform(GB_cluster_merged, leasing_rate_diff = leasing_rate_green - leasing_rate_reg)
+
+#
+summary(GB_cluster_merged)[,44:48]
+
+  
+
+
+```
+
+### 1-4 Visual confirmations
+
+We can plot the relevant factors to visually observe the other factors that show deviations from having the same mean between green buildings and the rest of buildings.
+
+```{r}
+
+# 1-4 Differences in Age
+ggplot(data = GB_cluster_merged) + geom_point(mapping = aes(x = age_green, y = age_reg, color = rent_diff)) +
+  xlim(0, 150) + 
+  ylim(0, 150)
+
+```
+
+```{r}
+# 1-4 Differences in Stories
+ggplot(data = GB_cluster_merged) + geom_point(mapping = aes(x = stories_green, y = stories_reg, color = rent_diff)) +
+  xlim(0, 100) + 
+  ylim(0, 100)
+```
+
+
+```{r}
+# 1-4 Differences in Size
+ggplot(data = GB_cluster_merged) + geom_point(mapping = aes(x = size_green, y = size_reg, color = rent_diff)) +
+  xlim(0, 2000000) + 
+  ylim(0, 2000000)
+```
+
+```{r}
+# 1-4 Differences in Class
+ggplot(data = GB_cluster_merged) + geom_point(mapping = aes(x = class_a_green, y = class_a_reg, color = rent_diff)) +
+  xlim(0, 2) + 
+  ylim(0, 2)
+
+```
+### 1-5 Looking at other potential patterns in the cluster data
+
+We can look for other patterns that may show us something about the differences between the green buildings and regular buildings.
+These patterns show relationship between the difference variables.
+```{r}
+
+# Looking at age and rent, based on total days
+ggplot(data = GB_cluster_merged) + geom_point(mapping = aes(x = age_diff, y = rent_diff, color = total_dd_07_green))
+
+# Looking at size and leasing rate, based on total days
+ggplot(data = GB_cluster_merged) + geom_point(mapping = aes(x =size_diff , y =leasing_rate_diff , color = total_dd_07_green))
+
+# Looking at age and leasing rate, based on class
+ggplot(data = GB_cluster_merged) + geom_point(mapping = aes(x = age_diff, y = leasing_rate_diff, color = class_diff))
+
+# Looking at rent and leasing rate, based on total days
+ggplot(data = GB_cluster_merged) + geom_point(mapping = aes(x = rent_diff , y =leasing_rate_diff , color = total_dd_07_green))
+
+
+
+```
+
+
+### 1-6 Looking for other potential patterns other than rent, only between green buildings
+
+
+```{r}
+
+ggplot(data=GB_Green) + geom_boxplot(mapping=aes(x=amenities, y=leasing_rate, group = cut_width(amenities, 0.5))) 
+
+ggplot(data = GB_Green) + geom_point(mapping = aes(x = age, y = leasing_rate, color = total_dd_07))
+
+
+```
+### 1-7 By certain variables
+
+It's possible to look at some of the individual variables. 
+These visualizations show how whether a building is Class A is correlated to other attributes.
+
+Class A buildings:
+```{r}
+ggplot(data = GB_Green) + geom_point(mapping = aes(x = class_a, y =  Rent, color = total_dd_07))
+ggplot(data=GB_Green) + geom_boxplot(mapping=aes(x=class_a, y=leasing_rate, group = cut_width(class_a, 0.5))) 
+ggplot(data=GB_Green) + geom_boxplot(mapping=aes(x=class_a, y=age, group = cut_width(class_a, 0.5))) 
+ggplot(data=GB_Green) + geom_boxplot(mapping=aes(x=class_a, y=Rent, group = cut_width(class_a, 0.5))) 
+ggplot(data=GB_Green) + geom_boxplot(mapping=aes(x=class_a, y=leasing_rate, group = cut_width(class_a, 0.5))) 
+
+```
+
+
+
+
+Total Degree Days: 
+```{r}
+ggplot(data = GB_cluster_merged) + geom_point(mapping = aes(x = total_dd_07_green, y = Rent_green, color = rent_diff))
+
+```
+
+
+### 1-8 looking for other potential patterns in the general data
+
+Boxplots between green buildings and regular buildings. We can see that green buildings with green rating do have higher leasing rate on average.
+
+```{r}
+
+# 1-8 Green rating
+ggplot(data=GreenBuilding) + geom_boxplot(mapping=aes(x=green_rating, y=leasing_rate, group = cut_width(green_rating, 0.5))) 
+```
+
+Other factors were plotted to see if any particular patterns existed.
+
+```{r}
+ggplot(data = GreenBuilding) + geom_point(mapping = aes(x = age, y = Rent, color = green_rating))
+ggplot(data = GreenBuilding) + geom_point(mapping = aes(x = age, y = leasing_rate, color = total_dd_07))
+ggplot(data = GreenBuilding) + geom_point(mapping = aes(x = empl_gr, y = leasing_rate, color = total_dd_07))
+ggplot(data = GreenBuilding) + geom_point(mapping = aes(x = Rent , y = leasing_rate, color = total_dd_07))
+```
+
+
+### 1-9 Histograms
+
+A few histograms were drawn to check dispersion of data.
+
+```{r}
+plot(Rent ~ leasing_rate, data=GreenBuilding) 
+hist(GreenBuilding$Rent, breaks=20)
+
+hist(GreenBuilding$leasing_rate, breaks=20)
+
+hist(GreenBuilding$Electricity_Costs, breaks=20)
+
+hist(GreenBuilding$stories, breaks=20)
+
+hist(GreenBuilding$age, breaks=20)
+
+hist(GreenBuilding$size, breaks=20)
+```
+
+
+
+
+
+# Visual story telling part 2: flights at ABIA
+
+Several graphs were created, mostly focusing on the carriers and delays.
+
+```{r}
+library(mosaic)
+library(tidyverse)
+library(ggplot2)
+
+ABIA = read.csv(url("https://raw.githubusercontent.com/jgscott/STA380/master/data/ABIA.csv"))
+head(ABIA)
+```
+
+### 2-1. Distance by Carrier
+
+We can look at how each carrier differs in terms of the distances they operate. Some operators seem to operate shorter distances, such as AA, while B6 tends to travel farther per trip.
+
+```{r}
+ggplot(data=ABIA) + geom_boxplot(mapping=aes(x=UniqueCarrier, y=Distance)) +
+labs(
+    title = "Distance Comparisons for each Carrier",
+    caption = "Some airlines travel more than others"
+)
+ggplot(data=ABIA) + geom_boxplot(mapping=aes(x=UniqueCarrier, y=CRSElapsedTime, color = Distance)) 
+
+```
+
+### 2-2. Distance by Carrier
+
+We can consider delays of trips. We can see that some trips were delays for quite a long time.
+
+```{r}
+ggplot(data = ABIA) +   geom_point(mapping = aes(x = ArrDelay, y = DepDelay, color = UniqueCarrier)) +
+labs(
+    title = "Departure Delay vs Arrival Delay",
+    caption = "Delays"
+  )
+```
+
+### 2-3 Delays by hour of day
+
+We can see that departure delays occur less early morning, when there are less flights. 
+
+```{r}
+ggplot(data = ABIA) +   geom_point(mapping = aes(x = DepTime, y = DepDelay, color = UniqueCarrier)) +
+labs(
+    title = "Departure Delay vs Departure Time",
+    caption = "Delays by hour"
+  )
+```
+### 2-4 Arrival Delays for Shorter Flights
+
+```{r}
+Distance_shorter = ABIA$Distance[ABIA$Distance <= 4000]
+# adding a caption
+ggplot(ABIA, aes(ArrDelay, Distance_shorter)) +
+  geom_point(aes(color = DayOfWeek)) +
+  geom_smooth(se = FALSE) +
+  labs(
+    title = "Shorter Distance flights vs Arrival Delays",
+    caption = "Colored according to day of week"
+  )
+```
+
+### 2.5 Departure delay by carrier
+
+We can see that some carriers have less longer delays.
+
+```{r}
+
+ggplot(ABIA, aes(DepDelay, UniqueCarrier)) +
+  geom_point(aes(color = Month)) +
+  geom_smooth(se = FALSE) +
+  labs(
+    title = "Departure delay by carrier",
+    caption = "Color by month"
+  )
+
+
+```
+### 2-6 Carrier Delays
+
+We can also observe that differences among carriers with CarrierDelay variable.
+
+```{r}
+ggplot(data=ABIA) + geom_boxplot(mapping=aes(x=UniqueCarrier, y=CarrierDelay, color = Distance)) 
+
+```
+
+### Next, we can look at how airport treats different carriers
+
+### 2-6 Airport Taxi time for each carrier
+
+We can see that certain carriers take less time to taxi in and out of the airport.
+
+
+```{r}
+
+#Airport performances
+ggplot(data=ABIA) + geom_boxplot(mapping=aes(x=UniqueCarrier, y=TaxiIn, color = Distance)) 
+
+ggplot(data=ABIA) + geom_boxplot(mapping=aes(x=UniqueCarrier, y=TaxiOut, color = Distance)) 
+
+
+```
+
+### 2-7 Origin and Arrival Delay
+
+We can see if flights from certain origin are more likely to arrive late.
+
+
+
+```{r}
+
+ggplot(data=ABIA) + geom_boxplot(mapping=aes(x=Origin, y=ArrDelay, color = UniqueCarrier)) +
+    theme(axis.text.x = element_text(angle=90, vjust=0.6))
+
+
+```
+
+### 2-8 Deprature Time and Departure Delay, by month
+
+We can see for each destination whether there is some visual relationship between departure time and departure delay.
+
+```{r}
+ggplot(data = ABIA) +   geom_point(mapping = aes(x = DepTime, y = DepDelay)) + 
+      facet_wrap(~ Month, nrow = 3) +
+      theme(axis.text.x = element_text(angle=90, vjust=0.6))
+```
+
+### 2-9 Flight Schedule by departure time and destination
+
+We can color code each carrier to observe if any patterns exist and see that certain destinations have only one carrier.
+
+
+```{r q2}
+
+
+ggplot(data = ABIA) +   geom_point(mapping = aes(x = Dest, y = DepTime, color = UniqueCarrier)) +
+      theme(axis.text.x = element_text(angle=90, vjust=0.6))
+
+```
+
+
+
+
+# 3. Portfolio modeling
+
+### 3-1 Constructing the three portfolios
+
+Three portfolios of different focuses were selected by selecting 5 different funds each with equal weights.
+The portfolios were rebalanced each day at zero transaction cost.
+The portfolios are the following:
+
+(Portfolio 1) Portfolio consisting of large-cap growth, technology, and world stock indexes
+1) XLK: Technology Select Sector SPDR Fund
+2) VT: Vanguard Total World Stock Index Fund ETF Shares
+3) SCHG: Schwab U.S. Large-Cap Growth ETF
+4) VWO: Vanguard FTSE Emerging Markets ETF
+
+(Portfolio 2) Portfolio consisting of hedge fund, commodities, real estate, and bond funds
+1) MNA: IQ Merger Arbitrage ETF (MNA)
+2) PDBC: Invesco Optimum Yield Diversified Commodity Strategy No K-1 ETF 
+3) BND: Vanguard Total Bond Market ETF
+4) BNDX: Vanguard Total International Bond ETF
+5) VNQ: Vanguard Real Estate Index Fund
+
+(Portfolio 3) portfolio consisting of technology, health care and total stock market funds
+1) IYW: iShares U.S. Technology ETF
+2) XLV: Health Care Select Sector SPDR Fund
+3) VTI: Vanguard Total Stock Market Index Fund ETF Shares (VTI)
+4) IXJ: iShares Global Healthcare ETF
+5) VGT: Vanguard Information Technology ETF
+
+When the returns of the three portfolios were compared, Portfolio 3 had the highest VaR, followed by Portfolio 1 and 2.
+The results kept changing so set.seed(1) was used to report a constant number.
+
+```{r}
+library(mosaic)
+library(quantmod)
+library(foreach)
+
+mystocks1 = c("XLK", "VT", "SCHG", "SCHE", "VWO")
+mystocks2 = c("MNA", "PDBC", "BND", "BNDX", "VNQ")
+mystocks3 = c("IYW", "XLV", "VTI", "IXJ", "VGT")
+myprices1 = getSymbols(mystocks1, from = "2015-08-01", to = "2020-07-31")
+myprices2 = getSymbols(mystocks2, from = "2015-08-01", to = "2020-07-31")
+myprices3 = getSymbols(mystocks3, from = "2015-08-01", to = "2020-07-31")
+
+
+# A chunk of code for adjusting all stocks
+# creates a new object adding 'a' to the end
+# For example, WMT becomes WMTa, etc
+for(ticker in mystocks1) {
+	expr = paste0(ticker, "a = adjustOHLC(", ticker, ")")
+	eval(parse(text=expr))
+}
+for(ticker in mystocks2) {
+	expr = paste0(ticker, "a = adjustOHLC(", ticker, ")")
+	eval(parse(text=expr))
+}
+for(ticker in mystocks3) {
+	expr = paste0(ticker, "a = adjustOHLC(", ticker, ")")
+	eval(parse(text=expr))
+}
+
+# Combine all the returns in a matrix
+all_returns1 = cbind( ClCl(XLKa),	ClCl(VTa),	ClCl(SCHGa),	ClCl(SCHEa),	ClCl(VWOa))
+all_returns2 = cbind( ClCl(MNAa),	ClCl(PDBCa),	ClCl(BNDa),	ClCl(BNDXa),	ClCl(VNQa))
+all_returns3 = cbind( ClCl(IYWa),	ClCl(XLVa),	ClCl(VTIa),	ClCl(IXJa),	ClCl(VGTa))
+head(all_returns1)
+all_returns1 = as.matrix(na.omit(all_returns1))
+all_returns2 = as.matrix(na.omit(all_returns2))
+all_returns3 = as.matrix(na.omit(all_returns3))
+
+# Compute the returns from the closing prices
+pairs(all_returns1)
+pairs(all_returns2)
+pairs(all_returns3)
+
+# Sample a random return from the empirical joint distribution
+# This simulates a random day
+return1.today = resample(all_returns1, 1, orig.ids=FALSE)
+return2.today = resample(all_returns2, 1, orig.ids=FALSE)
+return3.today = resample(all_returns3, 1, orig.ids=FALSE)
+
+```
+
+### 3-2 Constructing portfolio 1
+
+The returns of Portfolio 1 was simulated 5,000 times. 
+The 20-eday 5% Value at Risk for this portfolio turned out to be around $3,573.
+
+```{r}
+######## Portfolio 1
+
+# Update the value of your holdings
+# Assumes an equal allocation to each asset
+total_wealth1 = 100000
+my_weights1 = c(0.2,0.2,0.2, 0.2, 0.2)
+holdings1 = total_wealth1*my_weights1
+holdings1 = holdings1*(1 + return1.today)
+
+# Compute your new total wealth
+holdings1
+total_wealth1 = sum(holdings1)
+total_wealth1
+
+# Now simulate many different possible futures
+# just repeating the above block thousands of times
+set.seed(1)
+initial_wealth1 = 100000
+sim1 = foreach(i=1:5000, .combine='rbind') %do% {
+	total_wealth1 = initial_wealth1
+	weights1 = c(0.2, 0.2, 0.2, 0.2, 0.2)
+	holdings1 = weights1 * total_wealth1
+	n_days = 20
+	wealthtracker1 = rep(0, n_days)
+	for(today in 1:n_days) {
+		return1.today = resample(all_returns1, 1, orig.ids=FALSE)
+		holdings1 = holdings1 + holdings1*return1.today
+		total_wealth1 = sum(holdings1)
+		wealthtracker1[today] = total_wealth1
+	}
+	wealthtracker1
+}
+
+# each row is a simulated trajectory
+# each column is a data
+head(sim1)
+hist(sim1[,n_days], 25)
+
+# Profit/loss
+mean(sim1[,n_days])
+cat("Mean return for the simulation is: ", mean(sim1[,n_days] - initial_wealth1), "\n")
+hist(sim1[,n_days] - initial_wealth1, breaks=100)
+
+# 5% value at risk:
+cat("Value at Risk for Portfolio 1 is: ", quantile(sim1[,n_days]- initial_wealth1, prob=0.05), "\n")
+
+# note: this is  a negative number (a loss, e.g. -500), but we conventionally
+# express VaR as a positive number (e.g. 500)
+
+
+```
+
+### 3-3 Portfolio 2
+
+The returns of Portfolio 1 was simulated 5,000 times. 
+The 20-eday 5% Value at Risk for this portfolio turned out to be around $3,573.
+
+```{r}
+
+######## Portfolio 2
+
+# Update the value of your holdings
+# Assumes an equal allocation to each asset
+total_wealth2 = 100000
+my_weights2 = c(0.2,0.2,0.2, 0.2, 0.2)
+holdings2 = total_wealth2*my_weights2
+holdings2 = holdings2*(1 + return2.today)
+
+# Compute your new total wealth
+holdings2
+total_wealth2 = sum(holdings2)
+total_wealth2
+
+# Now simulate many different possible futures
+# just repeating the above block thousands of times
+set.seed(1)
+initial_wealth2 = 100000
+sim2 = foreach(i=1:5000, .combine='rbind') %do% {
+	total_wealth2 = initial_wealth2
+	weights2 = c(0.2, 0.2, 0.2, 0.2, 0.2)
+	holdings2 = weights2 * total_wealth2
+	n_days = 20
+	wealthtracker2 = rep(0, n_days)
+	for(today in 1:n_days) {
+		return2.today = resample(all_returns2, 1, orig.ids=FALSE)
+		holdings2 = holdings2 + holdings2*return2.today
+		total_wealth2 = sum(holdings2)
+		wealthtracker2[today] = total_wealth2
+	}
+	wealthtracker2
+}
+
+# each row is a simulated trajectory
+# each column is a data
+head(sim2)
+hist(sim2[,n_days], 25)
+
+# Profit/loss
+mean(sim2[,n_days])
+cat("Mean return for the simulation is: ", mean(sim2[,n_days] - initial_wealth2), "\n")
+hist(sim2[,n_days] - initial_wealth2, breaks=100)
+
+# 5% value at risk:
+cat("Value at Risk for Portfolio 2 is: ", quantile(sim2[,n_days]- initial_wealth2, prob=0.05), "\n")
+
+
+
+```
+
+### 3-4 Portfolio 3
+
+The returns of Portfolio 1 was simulated 5,000 times. 
+The 20-day 5% Value at Risk for this portfolio turned out to be around $7,892.
+
+```{r}
+
+######## Portfolio 3
+
+# Update the value of your holdings
+# Assumes an equal allocation to each asset
+total_wealth3 = 100000
+my_weights3 = c(0.2,0.2,0.2, 0.2, 0.2)
+holdings3 = total_wealth3*my_weights3
+holdings3 = holdings3*(1 + return3.today)
+
+# Compute your new total wealth
+holdings3
+total_wealth3 = sum(holdings3)
+total_wealth3
+
+# Now simulate many different possible futures
+# just repeating the above block thousands of times
+set.seed(1)
+initial_wealth3 = 100000
+sim3 = foreach(i=1:5000, .combine='rbind') %do% {
+	total_wealth3 = initial_wealth3
+	weights3 = c(0.2, 0.2, 0.2, 0.2, 0.2)
+	holdings3 = weights3 * total_wealth3
+	n_days = 20
+	wealthtracker3 = rep(0, n_days)
+	for(today in 1:n_days) {
+		return3.today = resample(all_returns3, 1, orig.ids=FALSE)
+		holdings3 = holdings3 + holdings3*return3.today
+		total_wealth3 = sum(holdings3)
+		wealthtracker3[today] = total_wealth3
+	}
+	wealthtracker3
+}
+
+# each row is a simulated trajectory
+# each column is a data
+head(sim3)
+hist(sim3[,n_days], 25)
+
+# Profit/loss
+mean(sim3[,n_days])
+cat("Mean return for the simulation is: ", mean(sim3[,n_days] - initial_wealth3), "\n")
+hist(sim3[,n_days] - initial_wealth3, breaks=100)
+
+# 5% value at risk:
+cat("Value at Risk for Portfolio 3 is: ", quantile(sim3[,n_days]- initial_wealth3, prob=0.05), "\n")
+```
+
+
+
+
+# 4. Market segmentation
+
+### 4-1 K-Means clustering
+
+First, the dataset was used to create a K-Means clustering, and then an elbow plot was created to see how many clusters would be relevant. Since it appears there is no particular elbow.
+With the Gap statistic, it was also unclear if there was a dip, maybe at 5, so will use 5 as the number of K.
+
+
+```{r}
+library(ggplot2)
+library(LICORS)  # for kmeans++
+library(foreach)
+library(mosaic)
+library(cluster)
+
+Social_Marketing = read.csv(url('https://raw.githubusercontent.com/jgscott/STA380/master/data/social_marketing.csv'), header=TRUE)
+
+Social_summary = summary(Social_Marketing)
+
+################ Draw some plots describing 
+
+boxplot(Social_Marketing[,4:11], cex.axis = 0.5) 
+boxplot(Social_Marketing[,12:19], cex.axis = 0.5)
+boxplot(Social_Marketing[,20:27], cex.axis = 0.5)
+boxplot(Social_Marketing[,28:36], cex.axis = 0.5)
+
+summary(Social_Marketing)
+```
+```{r}
+# Center and scale the data
+X = Social_Marketing[,-c(1,2,36,37)]
+X = scale(X, center=TRUE, scale=TRUE)
+
+# Extract the centers and scales from the rescaled data (which are named attributes)
+mu = attr(X,"scaled:center")
+sigma = attr(X,"scaled:scale")
+
+# Elbow plot to see how many clusters would be good
+k_grid = seq(2, 20, by=1)
+SSE_grid = foreach(k = k_grid, .combine='c') %do% {
+  cluster_k = kmeans(X, k, nstart=30)
+  cluster_k$tot.withinss
+}
+plot(k_grid, SSE_grid)
+
+
+#Gap Statistic - had to choose a low number because it took too long to run
+Social_gap = clusGap(X, FUN = kmeans, nstart = 25, K.max = 10, B = 2,iter.max=15)
+plot(Social_gap)
+
+```
+
+### 4-2 K-means cluster with 5 clusters.
+
+When K-means clustering with 5 clusters was calculated, one cluster was larger than the rest, with 4,838 observations.
+
+A few different plots were drawn to see if any patters exist.
+
+```{r}
+
+
+
+# Run k-means with 5 clusters and 25 starts
+clust1 = kmeans(X, 5, nstart=25)
+clust1$size
+
+# What are the clusters?
+clust1$center  # not super helpful
+clust1$center[1,]*sigma + mu
+clust1$center[2,]*sigma + mu
+clust1$center[4,]*sigma + mu
+
+# A few plots with cluster membership shown
+# qplot is in the ggplot2 library
+qplot(food, business, data=Social_Marketing, color=factor(clust1$cluster))
+qplot(sports_fandom, sports_playing, data=Social_Marketing, color=factor(clust1$cluster))
+
+ggplot(data = Social_Marketing) +   geom_point(mapping = aes(x = food, y = news)) + 
+      facet_wrap(~ clust1$cluster, nrow = 3) +
+      theme(axis.text.x = element_text(angle=90, vjust=0.6))
+```
+### 4-3 K-Means++ Clustering with 10 clusters.
+
+From the first K-means cluster, the smaller 4 clusters were approximately around 600 - 900 observations.
+Thus, it is possible to try 10 clusters to find clusters averaging around 700-800 observations.
+
+Some graphs were tried, but due to the number of variables, it is hard to draw any conclusion.
+When we draw separate graphs for each of the clusters, we do see differences and constrasting shapes.
+
+```{r}
+
+# Using kmeans++ initialization
+clust2 = kmeanspp(X, k=10, nstart=25)
+clust2$size
+
+clust2$center[1,]*sigma + mu
+clust2$center[2,]*sigma + mu
+clust2$center[4,]*sigma + mu
+
+# Which Social_Marketing are in which clusters?
+#which(clust2$cluster == 1)
+
+# Compare versus within-cluster average  from the first run
+clust1$withinss
+clust2$withinss
+sum(clust1$withinss)
+sum(clust2$withinss)
+clust1$tot.withinss
+clust2$tot.withinss
+clust1$betweenss
+clust2$betweenss
+
+qplot(food, business, data=Social_Marketing, color=factor(clust2$cluster))
+qplot(sports_fandom, sports_playing, data=Social_Marketing, color=factor(clust2$cluster))
+qplot(cooking, tv_film, data=Social_Marketing, color=factor(clust2$cluster))
+
+ggplot(data = Social_Marketing) +   geom_point(mapping = aes(x = school, y = college_uni)) + 
+      facet_wrap(~ clust2$cluster, nrow = 3) +
+      theme(axis.text.x = element_text(angle=90, vjust=0.6))
+
+ggplot(data = Social_Marketing) +   geom_point(mapping = aes(x = shopping, y = music)) + 
+      facet_wrap(~ clust2$cluster, nrow = 3) +
+      theme(axis.text.x = element_text(angle=90, vjust=0.6))
+```
+
+### 4-4 Correlogram
+
+We can look at the correlation of the individual variables to see if anything appear related to one another.
+
+```{r}
+library(ggplot2)
+library(ggcorrplot)
+
+
+Social_Plot = Social_Marketing[,2:37]
+
+# Correlation matrix0
+data(Social_Plot)
+corr <- round(cor(Social_Plot), 1)
+
+# Plot
+ggcorrplot(corr, hc.order = TRUE, 
+           type = "lower", 
+           lab = TRUE, 
+           lab_size = 3, 
+           method="circle", 
+           colors = c("tomato2", "white", "springgreen3"), 
+           title="Correlogram of Social Marketing", 
+           ggtheme=theme_bw)
+
+# Select only 20 variables to see
+Social_Plot_2 = Social_Marketing[,2:21]
+data(Social_Plot_2)
+corr <- round(cor(Social_Plot_2), 1)
+ggcorrplot(corr, hc.order = TRUE, 
+           type = "lower", 
+           lab = TRUE, 
+           lab_size = 3, 
+           method="circle", 
+           colors = c("tomato2", "white", "springgreen3"), 
+           title="Correlogram of Social Marketing - 20 variables", 
+           ggtheme=theme_bw)
+
+```
+### 4-5 Hierarchical clustering
+
+When the hierarchical clustering was conducted and a dendrogram was created, the clusters were hard to observe but we could see that one side of the tree branch is much larger than the others. It could be how the tree is drawn but it is hard to verify.
+
+```{r}
+######################### Hierarchical
+
+# Center/scale the data
+#Social_scaled = scale(Social_Marketing, center=TRUE, scale=TRUE) 
+Social_X = Social_Marketing[,-c(1,2,36,37)]
+
+# Form a pairwise matrix using the dist function
+Social_Marketing_matrix = dist(Social_X, method='euclidean')
+
+# Now run hierarchical clustering
+hier_Social = hclust(Social_Marketing_matrix, method='average')
+
+# Plot the dendrogram
+plot(hier_Social, cex=0.5)
+
+# Cut the tree into k clusters
+cluster1 = cutree(hier_Social, k=5)
+summary(factor(cluster1))
+
+# Examine the cluster members
+#which(cluster1 == 1)
+#which(cluster1 == 2)
+#which(cluster1 == 3)
+```
+
+### 4-6 PCA Analysis
+
+When the PCA analysis was conducted on the dataset, the cumulative proportion of variance explained by the model passed 0.5 with PC6.
+
+```{r}
+
+################## PCA Analysis 
+
+library(tidyverse)
+library(ggplot2)
+
+#Imported data is Social Marketing
+#Social_Marketing = read.csv(url('https://raw.githubusercontent.com/jgscott/STA380/master/data/social_marketing.csv'), header=TRUE)
+
+# predicted engagement versus gross ratings points
+ggplot(Social_Marketing) + 
+	geom_point(aes(x=travel, y=sports_fandom, color=music))
+
+# now we have a tidy matrix of Social_Marketing by questions
+# each entry is an average survey response
+head(Social_X)
+	
+# a look at the correlation matrix
+cor(Social_X)[1:20]
+
+# a quick heatmap visualization, reorder the variables by hierarchical clustering
+ggcorrplot::ggcorrplot(cor(Social_X), hc.order = TRUE)
+
+
+# Now look at PCA of the (average) survey responses.  
+# This is a common way to treat survey data
+PCAsocial = prcomp(Social_X, scale=TRUE)
+
+## variance plot
+plot(PCAsocial)
+summary(PCAsocial)
+
+
+
+
+
+
+
+```
+
+
+
+# 5. Author attribution
+    
+  
+### 5-1. Creating Training Set
+
+First, training sets were created for the 50 authors, with Doc-term-matrix and tf-idf. 
+    
+```{r}
+## The tm library and related plugins comprise R's most popular text-mining stack.
+## See http://cran.r-project.org/web/packages/tm/vignettes/tm.pdf
+library(tm) 
+library(tidyverse)
+library(slam)
+library(proxy)
+
+library(ggplot2)
+library(LICORS)  # for kmeans++
+library(foreach)
+library(mosaic)
+library(kknn)
+library(scorecard)
+library(factoextra)
+library(class)
+
+# https://gist.github.com/jgscott/28d9d1287a0c3c1477e2113f6758d5ff
+readerPlain = function(fname){
+				readPlain(elem=list(content=readLines(fname)), 
+							id=fname, language='en') }
+							
+
+####################### Training Set
+
+## "globbing" = expanding wild cards in filename paths
+#Get all training data
+file_list = Sys.glob('./data/ReutersC50/C50train/*/*.txt')
+all_c50 = lapply(file_list, readerPlain) 
+
+
+# Clean up the file names
+# no doubt the stringr library would be nicer here.
+# this is just what I hacked together
+mynames = file_list %>%
+	{ strsplit(., '/', fixed=TRUE) } %>%
+	{ lapply(., tail, n=2) } %>%
+	{ lapply(., paste0, collapse = '') } %>%
+	unlist
+	
+# Rename the articles
+names(all_c50) = mynames
+
+## once you have documents in a vector, you create a text mining 'corpus' with: 
+documents_raw = Corpus(VectorSource(all_c50))
+
+## Some pre-processing/tokenization steps.
+## tm_map just maps some function to every document in the corpus
+my_documents = documents_raw %>%
+  tm_map(content_transformer(tolower))  %>%             # make everything lowercase
+  tm_map(content_transformer(removeNumbers)) %>%        # remove numbers
+  tm_map(content_transformer(removePunctuation)) %>%    # remove punctuation
+  tm_map(content_transformer(stripWhitespace))          # remove excess white-space
+
+## Remove stopwords.  Always be careful with this: one person's trash is another one's treasure.
+# 2 example built-in sets of stop words
+#stopwords("en") #stopwords("SMART") #?stopwords
+# let's just use the "basic English" stop words
+my_documents = tm_map(my_documents, content_transformer(removeWords), stopwords("en"))
+
+
+## create a doc-term-matrix from the corpus
+DTM_train_c50 = DocumentTermMatrix(my_documents)
+DTM_train_c50 # some basic summary statistics
+
+## You can inspect its entries...
+#inspect(DTM_train_c50[1:10,1:20])
+
+## ...find words with greater than a min count...
+findFreqTerms(DTM_train_c50, 1000)
+
+## ...or find words whose count correlates with a specified word.
+# the top entries here look like they go with "genetic"
+#findAssocs(DTM_train_c50, "genetic", .5)
+
+## Finally, let's drop those terms that only occur in one or two documents
+## This is a common step: the noise of the "long tail" (rare terms)
+## can be huge, and there is nothing to learn if a term occured once.
+## Below removes those terms that have count 0 in >95% of docs.  
+## Probably a bit stringent here... but only 50 docs!
+DTM_train_c50 = removeSparseTerms(DTM_train_c50, 0.98)
+#DTM_train_c50 
+
+# construct TF IDF weights -- might be useful if we wanted to use these
+# as features in a predictive model
+tfidf_train_c50 = weightTfIdf(DTM_train_c50)
+
+
+```
+
+### 5-2 Creating a table of Y values (author names)
+
+Author names were added as another column for possible supervised analysis.
+
+
+```{r}
+####### Create a table of y values (author names)  for possible supervised analysis
+authors = gsub('\\d+newsML.txt', '', mynames)
+authors[30:60]
+```
+
+### 5-3 Create a tree for visual inspection
+
+The tree is too large to be viewed. Could not get cutting the tree to show any legible part. 
+
+```{r}
+# Compare /cluster documents
+
+# the proxy library has a built-in function to calculate cosine distance
+# define the cosine distance matrix for our DTM using this function
+cosine_dist_mat_train = proxy::dist(as.matrix(tfidf_train_c50), method='cosine')
+
+tree_train_c50 = hclust(cosine_dist_mat_train)
+plot(tree_train_c50, xlim = c(1, 2), ylim = c(1,2))
+
+
+clust5_train = cutree(tree_train_c50, k=5)
+
+fviz_dend(tree_train_c50, k = 2,cex = 0.5,k_colors = c("#00AFBB","#E7B800","#FC4E07"),
+          color_labels_by_k = TRUE, ggtheme = theme_minimal())
+groups <- cutree(tree_train_c50, k = 2)
+table(groups)
+
+```
+
+### 5-4 Create Test Set
+
+Test set was created in the same way as training set.
+
+```{r}
+################################ Create a testing set by repeating the same steps
+
+test_list = Sys.glob('./data/ReutersC50/C50test/*/*.txt')
+test_c50 = lapply(test_list, readerPlain) 
+test_names = test_list %>%
+	{ strsplit(., '/', fixed=TRUE) } %>%
+	{ lapply(., tail, n=2) } %>%
+	{ lapply(., paste0, collapse = '') } %>%
+	unlist
+
+names(test_c50) = test_names
+## create a text mining 'corpus' with: 
+test_documents_raw = Corpus(VectorSource(test_c50))
+
+## Some pre-processing/tokenization steps.
+## tm_map just maps some function to every document in the corpus
+test_documents = test_documents_raw %>%
+  tm_map(content_transformer(tolower))  %>%             # make everything lowercase
+  tm_map(content_transformer(removeNumbers)) %>%        # remove numbers
+  tm_map(content_transformer(removePunctuation)) %>%    # remove punctuation
+  tm_map(content_transformer(stripWhitespace))          # remove excess white-space
+
+## Remove stopwords.  Always be careful with this: one person's trash is another one's treasure.
+test_documents = tm_map(test_documents, content_transformer(removeWords), stopwords("en"))
+
+## create a doc-term-matrix from the corpus
+DTM_test_c50 = DocumentTermMatrix(test_documents)
+
+## Finally, let's drop those terms that only occur in one or two documents
+DTM_test_c50 = removeSparseTerms(DTM_test_c50, 0.98)
+DTM_test_c50 # now ~ 1000 terms (versus ~3000 before)
+
+# construct TF IDF weights -- might be useful if we wanted to use these
+# as features in a predictive model
+tfidf_test_c50 = weightTfIdf(DTM_test_c50)
+
+# the proxy library has a built-in function to calculate cosine distance
+# define the cosine distance matrix for our DTM using this function
+cosine_dist_mat_test = proxy::dist(as.matrix(tfidf_test_c50), method='cosine')
+
+
+######################## End of test set ############################################
+
+```
+
+### 5-5 Match dimensions between training set and test set
+
+To match the dimension between the sets, words in the test set that are not in the training set are dropped, for both DTM and TF-IDF datasets.
+
+```{r}
+# Need to match dimension - drop words not in the training set
+cols_to_keep2 <- intersect(colnames(DTM_test_c50),colnames(DTM_train_c50))
+DTM_test_c50 <- DTM_test_c50[,cols_to_keep2, drop=FALSE]
+DTM_train_c50  <- DTM_train_c50[,cols_to_keep2, drop=FALSE]
+dim(DTM_train_c50)
+
+cols_to_keep <- intersect(colnames(tfidf_train_c50),colnames(tfidf_test_c50))
+tfidf_train_c50 <- tfidf_train_c50[,cols_to_keep, drop=FALSE]
+tfidf_test_c50  <- tfidf_test_c50[,cols_to_keep, drop=FALSE]
+
+dim(tfidf_test_c50)
+```
+
+### 5-6 KNN
+
+KNN method was used to predict the test set. Both the DTM and TF-IDF tables were used to compare the performances. 
+When we compare the results, the prediction from TF-IDF table is significantly better, as over 1,172 authors out of 2,500 were correctly identified, whereas using the DTM table yielded only 49 correct predictions. 
+Of those, 23 were correctly predicted by both.
+
+When tested with k=2, the results were slightly lower at 1,114 correct authors for TF-IDF table. Due to hardware, only these two k levels were tested.
+
+```{r}
+##################  KNN
+
+knnClust_DTM <- knn(train = DTM_train_c50, test = DTM_test_c50 , k = 1, cl = authors)
+knnClust_DTM[501:550]
+
+knnClust_TFIDF <- knn(train = tfidf_train_c50, test = tfidf_test_c50 , k = 1, cl = authors)
+knnClust_TFIDF[1001:1050]
+
+authors_compare <- data.frame(authors)
+authors_compare$KNN_DTM <- knnClust_DTM
+authors_compare$KNN_TFIDF <- knnClust_TFIDF
+#This causes error: authors_compare[30:60]
+
+authors_compare$DTM_right <- 'NULL'
+authors_compare$TFIDF_right <- 'NULL'
+authors_compare$both_right <- 'NULL'
+authors_compare$both_wrong <- 'NULL'
+authors_compare[authors_compare$authors == authors_compare$KNN_DTM,"DTM_right"] <- 'TRUE'
+authors_compare[authors_compare$authors == authors_compare$KNN_TFIDF,"TFIDF_right"] <- 'TRUE'
+authors_compare[authors_compare$authors == authors_compare$KNN_DTM & 
+                authors_compare$authors == authors_compare$KNN_TFIDF,"both_right"] <- 'TRUE'
+authors_compare[authors_compare$authors != authors_compare$KNN_DTM & 
+                authors_compare$authors != authors_compare$KNN_TFIDF,"both_wrong"] <- 'TRUE'
+
+length(which(authors_compare$DTM_right == 'TRUE'))
+length(which(authors_compare$TFIDF_right == 'TRUE'))
+length(which(authors_compare$both_right == 'TRUE'))
+length(which(authors_compare$both_wrong == 'TRUE'))
+
+################# end knn
+
+```
+
+
+
+# 6. Association rule mining
+
+
+### Approach
+
+The shopping items from the basket will be individually separated from the original data to run the apriori function.
+
+
+```{r}
+library(tidyverse)
+library(arules)  # has a big ecosystem of packages built around it
+library(arulesViz)
+library(dplyr)
+
+##################################################
+
+# Association rule mining
+# Adapted from code by Matt Taddy
+
+# Read in playlists from users
+# This is in "long" format -- every row is a single artist-listener pair
+
+Groceries_raw = read.delim("https://raw.githubusercontent.com/jgscott/STA380/master/data/groceries.txt", sep="\t", header=FALSE)
+
+# Create a dataframe where each basket is 1 row
+Groceries_df = data.frame(bag=Groceries_raw)
+for(i in 1:nrow(Groceries_df)) {
+    Groceries_df[i,"user"] <- i
+}
+
+```
+
+
+### 6-1 count how many baskets and items there were overall
+
+Before examining the baskets, each of the identical baskets and individual items were counted to give us a better understanding of the overall purchase.
+We find that there are 6,657 distinct baskets, while there were 169 distinct items. 
+The most popular item was canned beer.
+
+```{r}
+
+### Find most popular baskets
+
+Groupby_groceries = Groceries_df %>% count(V1)
+Groupby_groceries = Groupby_groceries[order(-Groupby_groceries$n),]
+
+cat("Number of distinct baskets:",length(Groupby_groceries$n), "\n")
+cat("20 Most popular baskets: \n")
+Groupby_groceries$V1[1:20]
+
+### Find individual words
+
+Groceries_indiv = unlist(strsplit(Groceries_raw$V1, ","))
+
+# Create a dataframe
+Groceries_df_item = data.frame(bag=Groceries_indiv)
+
+Groupby_groceries_item = Groceries_df_item %>% count(bag)
+Groupby_groceries_item = Groupby_groceries_item[order(-Groupby_groceries_item$n),]
+
+cat("Number of distinct items:",length(Groupby_groceries_item$n), "\n")
+cat("20 Most popular items: \n")
+Groupby_groceries_item$bag[1:20]
+
+
+
+
+
+```
+
+### 6-2 Create lists for the apriori algorithm
+
+The original dataframe has the information in different format so it had to be changed for the apriori algorithm.
+The Grocieries_indiv_df dataframe has 43,367 observations of two columns where one column has user and the other column has one of the items.
+The original data, which had all of the items in one row, were changed so that one row had only one item.
+This way, multiple items bought by one person was spanning multiple rows.
+
+When we looked at support > 0.01, confidence > 0.1, maximum items of 5, we found 437 rules. 
+
+```{r}
+
+# 1. create 2 lists, for user number and each item in the list
+Groceries_indiv = unlist(strsplit(Groceries_raw$V1, ","))
+#Groceries_indiv_user = unlist(Groceries_raw$user)
+
+# 2. create a dataframe that looks like [user : 1 item]
+
+Groceries_indiv_df = data.frame(items=character(0), user=integer(0))
+for(i in 1:nrow(Groceries_df)) {
+
+    Groceries_indiv_df = Groceries_indiv_df %>% add_row(items=unlist(strsplit(Groceries_raw$V1[i], ",")), user=i)
+#    Groceries_df[i,"V1"] <- gsub("," , '" "', Groceries_df[i,"V1"])
+    #Groceries_df[i,"V1"] <- gsub("\", "", Groceries_df[i,"V1"])
+#    grocerylists_df[i, "V2"] = paste(strsplit(as.character(Groceries_df[i,"V1"]), "\""), sep=", ")
+
+}
+
+# Turn user column into a factor
+Groceries_indiv_df$user = factor(Groceries_indiv_df$user)
+
+# apriori algorithm expects a list of baskets in a special format
+# In this case, one "basket" of songs per user. Split data into a list of items for each user
+grocerylists_df = Groceries_indiv_df
+grocerylists = split(x=grocerylists_df$items, f=grocerylists_df$user)
+
+## Remove duplicates ("de-dupe")
+grocerylists = lapply(grocerylists, unique)
+
+## Cast this variable as a special arules "transactions" class.
+grocerytrans = as(grocerylists, "transactions")
+summary(grocerytrans)
+
+# Now run the 'apriori' algorithm
+# Look at rules with support > .01 & confidence >.1 & length (# items) <= 5
+groceryrules = apriori(grocerytrans, 
+	parameter=list(support=.01, confidence=.1, maxlen=5))
+     
+
+# Look at the output... 
+arules::inspect(groceryrules[1:100])
+
+
+```
+
+### 6-3 Subsets of rules
+
+We tried to find a subset of rules that satisfied different levels of lift or confidence.
+
+When Lift was set to 2, we found 96 rules.
+When confidence was set to be > 0.5, we found 14 rules, most of which included whole milk.
+
+
+```{r}
+
+## Choose a subset
+arules::inspect(subset(groceryrules, subset=lift > 2))
+arules::inspect(subset(groceryrules, subset=confidence > 0.5))
+arules::inspect(subset(groceryrules, subset=lift > 2 & confidence > 0.5))
+
+```
+### 6-4  plots
+
+This shows the plots for the rules found. More colors could be added to the plot.
+
+```{r}
+# plot all the rules in (support, confidence) space
+# notice that high lift rules tend to have low support
+plot(groceryrules)
+
+# can swap the axes and color scales
+plot(groceryrules, measure = c("support", "lift"), shading = "confidence")
+
+
+# "two key" plot: coloring is by size (order) of item set
+plot(groceryrules, method='two-key plot')
+
+# can now look at subsets driven by the plot
+arules::inspect(subset(groceryrules, support > 0.035))
+arules::inspect(subset(groceryrules, confidence > 0.7))
+
+```
+
+### 6-5 more plots
+
+This graph shows the items in the rules and how the rules apply. 20 and 50 rules were also tried to see if we could recognize the words a little bit better.
+
+```{r}
+
+# graph-based visualization
+sub1 = subset(groceryrules, subset=confidence > 0.01 & support > 0.01)
+summary(sub1)
+plot(sub1, method='graph')
+
+plot(head(sub1, 50, by='lift'), method='graph')
+plot(head(sub1, 20, by='lift'), method='graph')
+# export
+#saveAsGraph(head(groceryrules, n = 1000, by = "lift"), file = "groceryrules.graphml")
+```
+
